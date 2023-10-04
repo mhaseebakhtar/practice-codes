@@ -6,6 +6,9 @@ class DB {
     private $dbPassword = "DBPASS";
     private $dbName = "DBNAME";
     private $db;
+    private $table;
+    private $columns;
+    private $where;
 
     public function __construct() {
         if (!isset($this->db)) {
@@ -15,24 +18,67 @@ class DB {
                 die("Failed to connect with MySQL: " . $conn->connect_error);
             } else {
                 $this->db = $conn;
+
+                // set default values
+                $this->columns = '*';
+                $this->where = '';
             }
         }
     }
 
     /**
-     * function to insert data into DB
+     * function to select a table for query operation
      * @param $table
+     * @return DB
+     */
+    public function table($table) {
+        $this->table = $table;
+
+        return $this;
+    }
+
+    /**
+     * function to select columns for query operation
+     * @param $columns
+     * @return DB
+     */
+    public function select($columns = ['*']) {
+        $this->columns = implode(', ', $columns);
+
+        return $this;
+    }
+
+    /**
+     * function to select columns for query operation
+     * @param $args
+     * @return DB
+     */
+    public function where($args) {
+        if (!empty($args)) {
+            $condArr = array();
+            foreach ($args as $key => $value) {
+                $condArr[] = $key . " = '" . $this->db->real_escape_string($value) . "'";
+            }
+
+            $this->where = " WHERE " . implode(" AND ", $condArr);
+        }
+
+        return $this;
+    }
+
+    /**
+     * function to insert data into DB
      * @param $args
      * @return false|mixed
      */
-    public function create($table, $args) {
+    public function insert($args) {
         $response = false;
         if (!empty($args)) {
             $columns = implode(", ", array_keys($args));
             $escaped_values = array_map(array($this->db, 'real_escape_string'), array_values($args));
             $values = implode("', '", $escaped_values);
 
-            $result = $this->db->query("INSERT INTO $table ($columns) VALUES ('$values')");
+            $result = $this->db->query("INSERT INTO " . $this->table . " ($columns) VALUES ('$values')");
             $response = $result ? $this->db->insert_id : false;
         }
 
@@ -40,51 +86,37 @@ class DB {
     }
 
     /**
-     * function to read data from DB
-     * @param $table
-     * @param $args
+     * function to get data from DB
      * @return false|mixed
      */
-    public function read($table, $args) {
-        $response = false;
-        if (!empty($args)) {
-            $condArr = array();
-            foreach ($args as $key => $value) {
-                $condArr[] = $key . " = '" . $this->db->real_escape_string($value) . "'";
-            }
+    public function get() {
+        $result = $this->db->query("SELECT " . $this->columns . " FROM " . $this->table . $this->where);
+        return ($result->num_rows > 0) ? $result->fetch_assoc() : false;
+    }
 
-            $result = $this->db->query("SELECT * FROM $table WHERE " . implode(" AND ", $condArr));
-            if ($result->num_rows == 1) {
-                $response = array('mode' => 'single', 'result' => $result->fetch_assoc());
-            } else if ($result->num_rows > 1) {
-                $response = array('mode' => 'multi', 'result' => $result->fetch_all());
-            }
-        }
-
-        return $response;
+    /**
+     * function to fetch data from DB
+     * @return false|mixed
+     */
+    public function getAll() {
+        $result = $this->db->query("SELECT " . $this->columns . " FROM " . $this->table . $this->where);
+        return ($result->num_rows > 0) ? $result->fetch_all() : false;
     }
 
     /**
      * function to update data into DB
-     * @param $table
      * @param $data
-     * @param $args
      * @return false|mixed
      */
-    public function update($table, $data, $args) {
+    public function update($data) {
         $response = false;
-        if (!empty($data) && !empty($args)) {
+        if (!empty($data)) {
             $valueArr = array();
             foreach ($data as $key => $value) {
                 $valueArr[] = $key . " = '" . $this->db->real_escape_string($value) . "'";
             }
 
-            $condArr = array();
-            foreach ($args as $key => $value) {
-                $condArr[] = $key . " = '" . $this->db->real_escape_string($value) . "'";
-            }
-
-            $response = $this->db->query("UPDATE $table SET " . implode(", ", $valueArr) . " WHERE " . implode(" AND ", $condArr));
+            $response = $this->db->query("UPDATE " . $this->table . " SET " . implode(", ", $valueArr) . $this->where);
         }
 
         return $response;
@@ -92,21 +124,9 @@ class DB {
 
     /**
      * function to delete data from DB
-     * @param $table
-     * @param $args
      * @return false|mixed
      */
-    public function delete($table, $args) {
-        $response = false;
-        if (!empty($args)) {
-            $condArr = array();
-            foreach ($args as $key => $value) {
-                $condArr[] = $key . " = '" . $this->db->real_escape_string($value) . "'";
-            }
-
-            $response = $this->db->query("DELETE FROM $table WHERE " . implode(" AND ", $condArr));
-        }
-
-        return $response;
+    public function delete() {
+        return $this->db->query("DELETE FROM " . $this->table . $this->where);
     }
 }
