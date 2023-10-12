@@ -8,6 +8,7 @@ class DB {
     private $db;
     private $table;
     private $columns;
+    private $conditions;
     private $where;
 
     public function __construct() {
@@ -22,6 +23,7 @@ class DB {
                 // set default values
                 $this->columns = '*';
                 $this->where = '';
+                $this->conditions = [];
             }
         }
     }
@@ -50,20 +52,21 @@ class DB {
 
     /**
      * function to select columns for query operation
-     * @param $args
+     * @param $column
+     * @param $value
+     * @param string $operator
      * @return DB
      */
-    public function where($args) {
-        if (!empty($args)) {
-            $condArr = array();
-            foreach ($args as $key => $value) {
-                $condArr[] = $key . " = '" . $this->db->real_escape_string($value) . "'";
-            }
-
-            $this->where = " WHERE " . implode(" AND ", $condArr);
-        }
+    public function where($column, $value, $operator = '=') {
+        $this->conditions[] = " $column $operator '" . $this->db->real_escape_string($value) . "'";
 
         return $this;
+    }
+
+    private function finalWhere() {
+        if (!empty($this->conditions)) {
+            $this->where = " WHERE " . implode(" AND ", $this->conditions);
+        }
     }
 
     /**
@@ -90,6 +93,8 @@ class DB {
      * @return false|mixed
      */
     public function get() {
+        self::finalWhere();
+
         $result = $this->db->query("SELECT " . $this->columns . " FROM " . $this->table . $this->where);
         return ($result->num_rows > 0) ? $result->fetch_assoc() : false;
     }
@@ -99,6 +104,8 @@ class DB {
      * @return false|mixed
      */
     public function getAll() {
+        self::finalWhere();
+
         $result = $this->db->query("SELECT " . $this->columns . " FROM " . $this->table . $this->where);
         return ($result->num_rows > 0) ? $result->fetch_all() : false;
     }
@@ -116,6 +123,7 @@ class DB {
                 $valueArr[] = $key . " = '" . $this->db->real_escape_string($value) . "'";
             }
 
+            self::finalWhere();
             $response = $this->db->query("UPDATE " . $this->table . " SET " . implode(", ", $valueArr) . $this->where);
         }
 
@@ -127,6 +135,8 @@ class DB {
      * @return false|mixed
      */
     public function delete() {
+        self::finalWhere();
+
         return $this->db->query("DELETE FROM " . $this->table . $this->where);
     }
 }
